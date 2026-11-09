@@ -1,0 +1,63 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  macos:
+    name: macOS (.app)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build app bundle
+        run: ./desktop/macos/build.sh
+      - name: Package zip
+        run: cd dist && ditto -c -k --sequesterRsrc --keepParent "网页成书.app" "网页成书-macos.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-app
+          path: dist/网页成书-macos.zip
+
+  windows:
+    name: Windows (exe)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install reportlab pyinstaller
+      - name: Build exe
+        run: >
+          python -m PyInstaller --noconfirm --clean --onefile --windowed
+          --name "网页成书" --add-data "core;core" --collect-submodules reportlab
+          --paths core desktop/windows/app.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: dist/网页成书.exe
+
+  android:
+    name: Android (apk)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.9'
+      - name: Build apk
+        run: gradle -p android assembleRelease --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: android/app/build/outputs/apk/release/*.apk

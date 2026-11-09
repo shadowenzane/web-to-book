@@ -1,0 +1,29 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'com.webtobook'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.webtobook'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.debug
+        }
+    }
+    lint { abortOnError false }
+}
+
+dependencies {
+    implementation 'org.jsoup:jsoup:1.17.2'
+}
