@@ -283,7 +283,11 @@ public class Converter {
             }
 
             put(zos, "OEBPS/nav.xhtml",
-                    xhtml("目录", "<nav epub:type=\"toc\" id=\"toc\"><h1>目录</h1><ol>" + nav + "</ol></nav>"));
+                    "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!DOCTYPE html>\n" +
+                    "<html xmlns=\"http://www.w3.org/1999/xhtml\" xmlns:epub=\"http://www.idpf.org/2007/ops\" " +
+                    "xml:lang=\"zh-CN\" lang=\"zh-CN\"><head><meta charset=\"utf-8\"/><title>目录</title>" +
+                    "<link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"/></head><body>" +
+                    "<nav epub:type=\"toc\" id=\"toc\"><h1>目录</h1><ol>" + nav + "</ol></nav></body></html>");
 
             for (Map.Entry<String, File> e : map.entrySet()) {
                 String nm = e.getValue().getName();
