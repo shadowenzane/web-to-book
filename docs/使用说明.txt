@@ -27,10 +27,9 @@
 想放进「应用程序」文件夹，直接拖过去。
 
 【Windows 安装】
-双击「网页成书.exe」。首次运行 Windows SmartScreen 可能提示，
-点「更多信息」→「仍要运行」。
-注意：exe 由 GitHub Actions 在 windows-latest 上构建，如未随本包提供，
-可在仓库的 Actions 页面下载 artifact（见 README）。
+双击「网页成书.exe」，单文件、无需安装 Python。
+首次运行 Windows SmartScreen 可能提示，点「更多信息」→「仍要运行」。
+该 exe 由 GitHub Actions（windows-latest）自动构建，可在仓库 Actions 页面下载最新 artifact。
 
 【Android 安装】
 1. 把 apk 拷到手机/电视，用文件管理器点击安装；
@@ -45,6 +44,7 @@
 · Android 版为 v1.0 首发，兼容性仍在完善，遇到问题欢迎提 issue。
 
 【源码与许可】
+GitHub：https://github.com/shadowenzane/web-to-book
 仓库结构：core（Python 内核）/ desktop/macos（Swift）/ desktop/windows（Tkinter）/ android（Java）
 许可证：MIT
 仅用于个人学习与资料归档，请遵守目标网站的版权与使用条款。
