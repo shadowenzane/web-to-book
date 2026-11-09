@@ -45,18 +45,20 @@ jobs:
   android:
     name: Android (apk)
     runs-on: ubuntu-latest
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.9'
       - name: Build apk
-        run: gradle -p android assembleRelease --no-daemon
+        run: gradle -p android assembleRelease --no-daemon -Pandroid.builder.sdkDownload=true
       - uses: actions/upload-artifact@v4
         with:
           name: android-apk
