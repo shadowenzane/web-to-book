@@ -25,7 +25,7 @@
 
 | 平台 | 文件 | 说明 |
 |---|---|---|
-| macOS 13+ (Apple 芯片) | `网页成书.app` / `.zip` | 已 ad-hoc 签名，双击运行 |
+| macOS 13+ (Apple 芯片) | `网页成书.app` / `.zip` | 本地脚本构建（`desktop/macos/build.sh`），已 ad-hoc 签名 |
 | Windows 10/11 | `网页成书.exe` | 单文件，无需安装 Python |
 | Android 8.0+ | `网页成书.apk` | 保存到系统「下载」目录 |
 
@@ -55,6 +55,10 @@ android/               Android 原生 Java 实现（Jsoup + PdfDocument）
 ```bash
 ./desktop/macos/build.sh          # 产物：dist/网页成书.app
 ```
+
+**macOS（CI 说明）**
+GitHub Free 账号默认没有 macOS runner 配额，因此 `build.yml` 只跑 Windows 与 Android；
+macOS 产物由 `desktop/macos/build.sh` 在本地构建（或手动触发 `build-macos.yml`，账号有配额时）。
 
 **Windows**
 

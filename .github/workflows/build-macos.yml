@@ -1,0 +1,21 @@
+name: build-macos
+
+# macOS 构建可单独运行：需要仓库所属账号有 macOS runner 配额
+# （GitHub Free 账号默认没有 macOS runner，会导致任务长时间排队）。
+on:
+  workflow_dispatch:
+
+jobs:
+  macos:
+    name: macOS (.app)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build app bundle
+        run: ./desktop/macos/build.sh
+      - name: Package zip
+        run: cd dist && ditto -c -k --sequesterRsrc --keepParent "网页成书.app" "网页成书-macos.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-app
+          path: dist/网页成书-macos.zip

@@ -6,20 +6,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  macos:
-    name: macOS (.app)
-    runs-on: macos-13
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build app bundle
-        run: ./desktop/macos/build.sh
-      - name: Package zip
-        run: cd dist && ditto -c -k --sequesterRsrc --keepParent "网页成书.app" "网页成书-macos.zip"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: macos-app
-          path: dist/网页成书-macos.zip
-
   windows:
     name: Windows (exe)
     runs-on: windows-latest
