@@ -1,4 +1,4 @@
-网页成书 · WebToBook v1.0
+网页成书 · WebToBook v1.1.0
 =========================
 
 把网页（尤其是微信公众号文章）变成 EPUB 电子书、PDF 和 DOCX 文档。
@@ -45,8 +45,15 @@
 
 【源码与许可】
 GitHub：https://github.com/shadowenzane/web-to-book
+制作人：张兴文 · zane@163.com
 仓库结构：core（Python 内核）/ desktop/macos（Swift）/ desktop/windows（Tkinter）/ android（Java）
 许可证：MIT
 仅用于个人学习与资料归档，请遵守目标网站的版权与使用条款。
 
-版本 1.0 · 2026
+【v1.1 更新】
+· 修复 Android 版图片抓不到的问题（http 图片被系统拦截，已统一转 https 并加重试）
+· 图注自动识别、居中排版；标题间距、分页和页脚页码优化
+· 新增制作人信息：应用「关于」、PDF 页脚、EPUB/DOCX 版权页
+· 制作：张兴文 ｜ zane@163.com ｜ github.com/shadowenzane/web-to-book
+
+版本 1.1.0 · 2026

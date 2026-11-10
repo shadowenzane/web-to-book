@@ -13,6 +13,11 @@ from urllib.parse import urlparse, urljoin
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import dom
 
+VERSION = '1.1.0'
+MAKER = '张兴文'
+MAKER_EMAIL = 'zane@163.com'
+HOMEPAGE = 'https://github.com/shadowenzane/web-to-book'
+
 UA = ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/124.0 Safari/537.36')
 HDRS = {'User-Agent': UA, 'Referer': 'https://mp.weixin.qq.com/',
@@ -218,6 +223,28 @@ def download_images(urls, imgdir, skip_svg=True, progress=None):
     return mapping, failed
 
 
+CAPTION_RE = re.compile(r'^\s*(图|表|Figure|Fig\.?|Table)\s*[S]?\s*\d')
+
+
+def is_caption(text):
+    t = (text or '').strip()
+    return bool(t) and len(t) < 400 and bool(CAPTION_RE.match(t))
+
+
+def colophon_lines(meta):
+    now = datetime.datetime.now().strftime('%Y-%m-%d')
+    lines = [
+        ('制作', '%s　&lt;%s&gt;' % (xesc(MAKER), MAKER_EMAIL)),
+        ('程序', '网页成书 WebToBook v%s' % VERSION),
+        ('原文', xesc(meta.get('url', ''))),
+        ('来源', '%s%s' % (xesc(meta.get('author', '') or '未标注'),
+                          ('　' + meta.get('date', '')) if meta.get('date') else '')),
+        ('生成', now),
+        ('声明', '本文档由网页内容自动转换，仅供个人学习与资料归档，版权归原作者及原平台所有。'),
+    ]
+    return lines
+
+
 class Serializer(object):
     def __init__(self, mapping, prefix, img_meta=None):
         self.map = mapping
@@ -272,7 +299,9 @@ class Serializer(object):
             elif has_block:
                 out.append('<div class="para">%s</div>' % inner)
             else:
-                out.append('<p>%s</p>' % inner)
+                plain = re.sub(r'<[^>]+>', '', inner)
+                cls = ' class="cap"' if is_caption(plain) else ''
+                out.append('<p%s>%s</p>' % (cls, inner))
             return
         for c in node.children:
             self.ser(c, out)
@@ -281,16 +310,22 @@ class Serializer(object):
 # ---------------------------------------------------------------- EPUB
 EPUB_CSS = '''@charset "utf-8";
 html, body { margin: 0; padding: 0; }
-body { font-family: "Songti SC", "Noto Serif CJK SC", serif; line-height: 1.75;
-       color: #222; padding: 0 0.7em 2em; }
-h1 { font-size: 1.6em; text-align: center; margin: 1.6em 0 1em; line-height: 1.5; }
-h2 { font-size: 1.35em; margin: 1.5em 0 0.8em; font-weight: bold;
-     border-bottom: 1px solid #ddd; padding-bottom: 0.3em; }
-p { margin: 0.5em 0; }
-div.para { margin: 0.5em 0; }
-p.meta { font-size: 0.9em; color: #555; }
-div.img { text-align: center; margin: 0.8em 0; }
+body { font-family: "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+       line-height: 1.8; font-size: 1em; color: #1c1c1c; padding: 0 0.9em 2.4em; }
+h1 { font-size: 1.7em; text-align: center; margin: 2.2em 0 1em; line-height: 1.5; letter-spacing: 0.02em; }
+h2 { font-size: 1.4em; margin: 2em 0 0.9em; font-weight: bold; line-height: 1.4;
+     border-bottom: 1px solid #d9d9d9; padding-bottom: 0.35em; page-break-after: avoid; }
+p { margin: 0.6em 0; text-align: justify; }
+div.para { margin: 0.6em 0; text-align: justify; }
+p.meta { font-size: 0.9em; color: #666; text-align: center; margin: 0.3em 0; }
+p.cap { font-size: 0.9em; line-height: 1.6; color: #555; text-align: center;
+        margin: 0.5em 0 1.4em; padding: 0 1em; }
+div.img { text-align: center; margin: 1.1em 0 0.3em; page-break-inside: avoid; }
 img { max-width: 100%; height: auto; }
+section[epub|type="chapter"] { page-break-before: always; }
+div.colophon { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #ddd;
+               font-size: 0.88em; line-height: 1.9; color: #666; text-align: center; }
+div.colophon strong { color: #333; font-weight: bold; }
 '''
 
 
@@ -332,6 +367,14 @@ def build_epub(meta, chapters, mapping, workdir, out_path):
             xhtml_page(ch['title'], '<section epub:type="chapter">%s</section>' % inner))
         files.append((fn, ch['title']))
         used.update(re.findall(r'\.\./images/([^"]+)"', inner))
+
+    col = ['<h2>版权与制作信息</h2>', '<div class="colophon">']
+    for k, v in colophon_lines(meta):
+        col.append('<p><strong>%s</strong>　%s</p>' % (k, v))
+    col.append('</div>')
+    open(os.path.join(oebps, 'text', 'ch99.xhtml'), 'w', encoding='utf-8').write(
+        xhtml_page('版权与制作信息', '<section epub:type="backmatter">%s</section>' % ''.join(col)))
+    files.append(('ch99.xhtml', '版权与制作信息'))
 
     for f in sorted(used):
         src = os.path.join(workdir, 'images', f)
@@ -413,21 +456,25 @@ def build_epub(meta, chapters, mapping, workdir, out_path):
 
 # ---------------------------------------------------------------- print HTML
 PRINT_CSS = '''
-@page { size: A4; margin: 18mm 16mm 18mm 16mm; }
+@page { size: A4; margin: 20mm 17mm 22mm 17mm; }
 html, body { margin: 0; padding: 0; background: #fff; }
-body { font-family: "Songti SC", "STSong", "SimSun", serif; font-size: 11.5pt;
-       line-height: 1.75; color: #111; }
-h1 { font-size: 22pt; text-align: center; margin: 40mm 0 8mm; line-height: 1.5; }
+body { font-family: "Songti SC", "STSong", "SimSun", serif; font-size: 11pt;
+       line-height: 1.85; color: #1a1a1a; }
+h1 { font-size: 24pt; text-align: center; margin: 46mm 0 8mm; line-height: 1.5; letter-spacing: 0.03em; }
 p.meta { text-align: center; color: #555; font-size: 10pt; margin: 2mm 0; }
-.url { text-align: center; color: #666; font-size: 8.5pt; word-break: break-all; }
-h2 { font-size: 15pt; margin: 10mm 0 4mm; padding-bottom: 2mm; border-bottom: 0.4pt solid #bbb;
-     page-break-after: avoid; }
+.url { text-align: center; color: #777; font-size: 8.5pt; word-break: break-all; }
+h2 { font-size: 16pt; margin: 12mm 0 5mm; padding-bottom: 2mm; border-bottom: 0.5pt solid #c9c9c9;
+     page-break-after: avoid; line-height: 1.4; }
 section.chapter { page-break-before: always; }
 section.front { page-break-after: always; }
-p { margin: 2.4mm 0; text-align: justify; }
-div.para { margin: 2.4mm 0; text-align: justify; }
-div.img { text-align: center; margin: 3mm 0; page-break-inside: avoid; }
-img { max-width: 100%; max-height: 310pt; }
+p { margin: 3mm 0; text-align: justify; text-indent: 0; }
+div.para { margin: 3mm 0; text-align: justify; }
+p.cap { font-size: 9pt; line-height: 1.6; color: #555; text-align: center;
+        margin: 1.5mm 0 6mm; padding: 0 6mm; }
+div.img { text-align: center; margin: 5mm 0 1mm; page-break-inside: avoid; }
+img { max-width: 100%; max-height: 210mm; }
+div.colophon { margin-top: 40mm; padding-top: 6mm; border-top: 0.5pt solid #ccc;
+               font-size: 9.5pt; line-height: 2; color: #555; text-align: center; }
 a { color: #1a5fb4; text-decoration: none; }
 '''
 
@@ -476,6 +523,13 @@ def build_print_pages(meta, chapters, mapping, workdir):
             for x in g:
                 ser.ser(x, buf)
             page('<section class="chapter">%s</section>' % ''.join(buf), 'print_%03d.html' % n)
+
+    n += 1
+    col = ['<section class="chapter"><h2>版权与制作信息</h2><div class="colophon">']
+    for k, v in colophon_lines(meta):
+        col.append('<p><strong>%s</strong>　%s</p>' % (k, v))
+    col.append('</div></section>')
+    page(''.join(col), 'print_%03d.html' % n)
     return paths
 
 
@@ -639,6 +693,12 @@ def build_docx(meta, chapters, mapping, workdir, out_path):
             p = para(n)
             if p:
                 body.append(p)
+
+    body.append('<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr>%s</w:p>' % w_text('版权与制作信息'))
+    for k, v in colophon_lines(meta):
+        plain = re.sub(r'<[^>]+>', '', v)
+        body.append('<w:p><w:pPr><w:pStyle w:val="Caption"/></w:pPr>%s%s</w:p>'
+                    % (w_text(k + '  ', True), w_text(plain)))
 
     sect = ('<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>'
             '<w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" '
@@ -857,8 +917,9 @@ def build_pdf_reportlab(meta, chapters, mapping, workdir, out_path):
     def footer(canvas, doc):
         canvas.saveState()
         canvas.setFont(F, 8)
-        canvas.setFillColor(colors.HexColor('#888888'))
-        canvas.drawCentredString(W / 2, 10 * mm, '%d' % doc.page)
+        canvas.setFillColor(colors.HexColor('#999999'))
+        canvas.drawString(LM, 10 * mm, '网页成书 v%s ｜ 制作：%s' % (VERSION, MAKER))
+        canvas.drawRightString(W - RM, 10 * mm, '%d' % doc.page)
         canvas.restoreState()
 
     doc = BaseDocTemplate(out_path, pagesize=A4, leftMargin=LM, rightMargin=RM,
@@ -903,14 +964,20 @@ def build_pdf_reportlab(meta, chapters, mapping, workdir, out_path):
         story.append(Paragraph(xesc(ch['title']), st_h2))
         for kind, val in items:
             if kind == 'text':
+                plain = re.sub(r'<[^>]+>', '', val)
+                style = st_cap if is_caption(plain) else st_body
                 try:
-                    story.append(Paragraph(val, st_body))
+                    story.append(Paragraph(val, style))
                 except Exception:
-                    story.append(Paragraph(xesc(re.sub(r'<[^>]+>', '', val)), st_body))
+                    story.append(Paragraph(xesc(plain), style))
             else:
                 fl = img_flow(val)
                 if fl is not None:
                     story.append(KeepTogether([Spacer(1, 2 * mm), fl, Spacer(1, 2 * mm)]))
+    story.append(PageBreak())
+    story.append(Paragraph('版权与制作信息', st_h2))
+    for k, v in colophon_lines(meta):
+        story.append(Paragraph('<b>%s</b>　%s' % (k, re.sub(r'<[^>]+>', '', v)), st_cap))
     doc.build(story)
     return out_path
 

@@ -83,7 +83,20 @@ class App(object):
         self.log.pack(fill='both', expand=True, padx=16, pady=10)
         self.log.configure(state='disabled')
 
+        foot = ttk.Frame(root)
+        foot.pack(fill='x', padx=16, pady=(0, 10))
+        ttk.Label(foot, text='制作：张兴文 ｜ zane@163.com ｜ v%s' % converter.VERSION,
+                  foreground='#888').pack(side='left')
+        ttk.Button(foot, text='关于', command=self.about).pack(side='right')
+
         root.after(120, self.poll)
+
+    def about(self):
+        messagebox.showinfo('关于 网页成书',
+                            '网页成书 WebToBook v%s\n\n'
+                            '把网页变成 EPUB / PDF / DOCX\n\n'
+                            '制作：张兴文\n邮箱：zane@163.com\n'
+                            '主页：github.com/shadowenzane/web-to-book' % converter.VERSION)
 
     def choose_dir(self):
         d = filedialog.askdirectory(initialdir=self.outdir.get() or os.path.expanduser('~'))

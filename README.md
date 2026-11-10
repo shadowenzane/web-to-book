@@ -19,6 +19,13 @@
 - **校验**：EPUB 检查 `mimetype`/XML/清单/图片引用完整性，DOCX 检查 OOXML 结构
 - **三端一致**：核心算法同一套，macOS 用 Swift 原生界面，Windows 用 Tkinter，Android 用原生 Java
 
+## 🆕 v1.1.0（2026-11）
+
+- **修复 Android 图片抓取**：微信图片常见 `http://` 地址，Android 9+ 默认禁止明文请求；现统一升级为 `https://`，并增加 UA/Referer、URL 变体（`/0`、`/640`）、失败重试与失败原因上报
+- **优化图文排版**：图注自动识别（图 S1/图 12/表 3…）并居中、缩小字号；标题与正文间距、分页避让、页面页脚页码；EPUB 章节分页与图片间距调整
+- **制作人信息**：应用「关于」窗口、PDF 页脚、EPUB/DOCX 的「版权与制作信息」页
+- 版本号 1.1.0（Android versionCode 2）
+
 ## 📦 下载
 
 前往 [Releases](../../releases) 或 Actions 的 artifact：
@@ -89,6 +96,10 @@ python3 core/converter.py --url "https://mp.weixin.qq.com/s/xxxx" --outdir ~/Dow
 - PDF 图片较多的文章页数会比较多（为保证清晰度）
 - Android 版在真机上的兼容性仍需更多测试；如遇问题请提 issue
 - 请遵守目标网站的版权与使用条款，仅用于个人学习与资料归档
+
+## 👤 制作人
+
+**张兴文** · <zane@163.com> · [github.com/shadowenzane/web-to-book](https://github.com/shadowenzane/web-to-book)
 
 ## 📄 License
 

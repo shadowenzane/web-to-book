@@ -1,6 +1,7 @@
 import AppKit
 import WebKit
 import PDFKit
+import CoreText
 
 // MARK: - PDF rendering (chapter-wise WebKit snapshot + slice into A4 pages)
 
@@ -182,10 +183,28 @@ final class PDFRenderer: NSObject, WKNavigationDelegate {
             ctx.translateBy(x: 0, y: -(H - next))
             ctx.drawPDFPage(page)
             ctx.restoreGState()
+            drawFooter(ctx, pageNo: pageCount + 1)
             ctx.endPDFPage()
             pageCount += 1
             y = next
         }
+    }
+
+    private func drawFooter(_ ctx: CGContext, pageNo: Int) {
+        let left = "网页成书 v1.1.0 ｜ 制作：张兴文  zane@163.com"
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 8),
+            .foregroundColor: NSColor(calibratedWhite: 0.55, alpha: 1)
+        ]
+        ctx.saveGState()
+        let line = CTLineCreateWithAttributedString(NSAttributedString(string: left, attributes: attrs))
+        ctx.textPosition = CGPoint(x: marginLeft, y: 22)
+        CTLineDraw(line, ctx)
+        let num = CTLineCreateWithAttributedString(NSAttributedString(string: "\(pageNo)", attributes: attrs))
+        let w = CTLineGetTypographicBounds(num, nil, nil, nil)
+        ctx.textPosition = CGPoint(x: pageW - marginRight - CGFloat(w), y: 22)
+        CTLineDraw(num, ctx)
+        ctx.restoreGState()
     }
 
     private func finishSuccess() {
@@ -294,8 +313,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSTextFieldDelegate {
 
     @objc private func showAbout() {
         let a = NSAlert()
-        a.messageText = "网页成书"
-        a.informativeText = "粘贴网页链接，自动抓取正文与图片，生成 EPUB / PDF / DOCX。\n\n版本 1.0"
+        a.messageText = "网页成书 v1.1.0"
+        a.informativeText = "把网页变成 EPUB / PDF / DOCX。\n\n制作：张兴文\n邮箱：zane@163.com\n主页：github.com/shadowenzane/web-to-book\n\n仅供个人学习与资料归档。"
         a.runModal()
     }
 

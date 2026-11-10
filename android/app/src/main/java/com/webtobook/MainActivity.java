@@ -92,12 +92,30 @@ public class MainActivity extends Activity {
         slp.topMargin = dp(8);
         root.addView(sc, slp);
 
+        TextView maker = text("制作：张兴文 · zane@163.com · v" + Converter.VERSION, 11, false, Color.GRAY);
+        maker.setGravity(Gravity.CENTER);
+        maker.setPadding(0, dp(8), 0, 0);
+        maker.setOnClickListener(v -> showAbout());
+        root.addView(maker);
+
         setContentView(root);
 
         if (Build.VERSION.SDK_INT < 29) {
             requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
         }
         prefillFromClipboard();
+    }
+
+    private void showAbout() {
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("网页成书 v" + Converter.VERSION)
+                .setMessage("把网页变成 EPUB / PDF / DOCX。\n\n"
+                        + "制作：张兴文\n"
+                        + "邮箱：zane@163.com\n"
+                        + "主页：" + Converter.HOMEPAGE + "\n\n"
+                        + "仅供个人学习与资料归档，版权归原作者及原平台所有。")
+                .setPositiveButton("知道了", null)
+                .show();
     }
 
     private void prefillFromClipboard() {
@@ -178,7 +196,9 @@ public class MainActivity extends Activity {
                     status.setText("完成，文件已保存到「下载」");
                     logLine("标题：" + r.title);
                     for (String n : r.savedNames) logLine("✓ " + n);
-                    logLine("共 " + r.chapters + " 章、" + r.images + " 张图片");
+                    logLine("共 " + r.chapters + " 章、" + r.images + " 张图片"
+                            + (r.failedImages > 0 ? "（失败 " + r.failedImages + " 张）" : ""));
+                    for (String e : r.imageErrors) logLine("  图片失败：" + e);
                     Toast.makeText(ctx, "转换完成", Toast.LENGTH_LONG).show();
                 });
             } catch (final Exception e) {

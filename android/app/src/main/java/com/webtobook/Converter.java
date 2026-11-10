@@ -57,10 +57,18 @@ public class Converter {
         public List<String> savedNames = new ArrayList<>();
         public int chapters;
         public int images;
+        public int failedImages;
+        public java.util.List<String> imageErrors = new ArrayList<>();
     }
 
+    public static final String VERSION = "1.1.0";
+    public static final String MAKER = "张兴文";
+    public static final String MAKER_EMAIL = "zane@163.com";
+    public static final String HOMEPAGE = "https://github.com/shadowenzane/web-to-book";
+
+    // Desktop UA: 微信对部分 UA 会返回精简页，导致图片地址缺失
     private static final String UA =
-            "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36";
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
     private static final String REFERER = "https://mp.weixin.qq.com/";
 
     static class Chapter {
@@ -104,22 +112,40 @@ public class Converter {
         Map<String, File> map = new LinkedHashMap<>();
         int idx = 0;
         for (Element im : imgs) {
-            String u = im.hasAttr("data-src") ? im.attr("data-src") : im.attr("src");
-            if (u == null) u = "";
-            u = u.trim();
-            if (u.isEmpty() || u.contains("mmbiz_svg") || u.startsWith("data:")) continue;
-            if (u.startsWith("//")) u = "https:" + u;
-            if (map.containsKey(u)) continue;
+            String raw = im.hasAttr("data-src") ? im.attr("data-src") : im.attr("src");
+            String u = normalizeImageUrl(raw);
+            if (u == null || u.contains("mmbiz_svg") || u.startsWith("data:")) continue;
+            final String key = u;
+            if (map.containsKey(key)) continue;
+            byte[] data = null;
+            String err = "";
+            String[] variants = new String[]{u, u.replace("/640", "/0"), u.replace("/0?", "/640?")};
+            for (String candidate : variants) {
+                for (int attempt = 0; attempt < 2 && data == null; attempt++) {
+                    try {
+                        byte[] d = fetchBytes(candidate);
+                        if (d != null && d.length >= 500) data = d;
+                    } catch (Exception e) {
+                        err = e.getClass().getSimpleName() + ": " + e.getMessage();
+                    }
+                }
+                if (data != null) break;
+            }
+            if (data == null) {
+                res.failedImages++;
+                if (res.imageErrors.size() < 5) res.imageErrors.add(key + " -> " + err);
+                continue;
+            }
             try {
-                byte[] data = fetchBytes(u);
-                if (data == null || data.length < 500) continue;
                 String ext = guessExt(data);
                 File f = new File(imgDir, String.format(Locale.US, "img_%03d%s", idx++, ext));
                 writeFile(f, data);
-                map.put(u, f);
+                map.put(key, f);
                 cb.onProgress(10 + (int) (35.0 * idx / Math.max(1, imgs.size())),
                         "下载图片 " + idx + "/" + imgs.size());
-            } catch (Exception ignored) { }
+            } catch (Exception e) {
+                res.failedImages++;
+            }
         }
         res.images = map.size();
         cb.onProgress(48, "图片处理完成（" + map.size() + " 张）");
@@ -173,6 +199,18 @@ public class Converter {
     }
 
     // ------------------------------------------------------------ parsing
+    /** WeChat image URLs are sometimes http:// (blocked by Android) or carry #fragments. */
+    static String normalizeImageUrl(String u) {
+        if (u == null) return null;
+        u = u.trim();
+        if (u.isEmpty()) return null;
+        if (u.startsWith("//")) u = "https:" + u;
+        if (u.startsWith("http://")) u = "https://" + u.substring(7);
+        int hash = u.indexOf('#');
+        if (hash > 0) u = u.substring(0, hash);
+        return u;
+    }
+
     static String meta(Document doc, String html, String prop) {
         Element m = doc.selectFirst("meta[property=" + prop + "]");
         return m == null ? "" : m.attr("content").trim();
@@ -263,9 +301,12 @@ public class Converter {
             StringBuilder nav = new StringBuilder();
 
             put(zos, "OEBPS/style.css",
-                    "body{font-family:serif;line-height:1.7;padding:0 1em}h1{text-align:center;font-size:1.6em}" +
-                    "h2{font-size:1.3em;border-bottom:1px solid #ddd;padding-bottom:.3em;margin-top:1.4em}" +
-                    "p{margin:.5em 0}img{max-width:100%;height:auto;display:block;margin:.6em auto}");
+                    "body{font-family:serif;line-height:1.8;padding:0 1em;color:#1c1c1c}" +
+                    "h1{text-align:center;font-size:1.7em;margin:2em 0 1em}" +
+                    "h2{font-size:1.4em;border-bottom:1px solid #d9d9d9;padding-bottom:.35em;margin:2em 0 .9em}" +
+                    "p{margin:.6em 0;text-align:justify}p.cap{font-size:.9em;color:#555;text-align:center;margin:.5em 0 1.4em}" +
+                    "div.img{text-align:center;margin:1em 0 .3em}img{max-width:100%;height:auto}" +
+                    "div.colophon{margin-top:3em;padding-top:1.5em;border-top:1px solid #ddd;font-size:.88em;color:#666;text-align:center}");
 
             int n = 0;
             StringBuilder chXhtml = new StringBuilder();
@@ -281,6 +322,11 @@ public class Converter {
                 spine.append("<itemref idref=\"c").append(n).append("\"/>");
                 nav.append("<li><a href=\"text/").append(fn).append("\">").append(esc(ch.title)).append("</a></li>");
             }
+
+            put(zos, "OEBPS/text/ch99.xhtml", xhtml("版权与制作信息", colophonHtml()));
+            manifest.append("<item id=\"c99\" href=\"text/ch99.xhtml\" media-type=\"application/xhtml+xml\"/>");
+            spine.append("<itemref idref=\"c99\"/>");
+            nav.append("<li><a href=\"text/ch99.xhtml\">版权与制作信息</a></li>");
 
             put(zos, "OEBPS/nav.xhtml",
                     "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!DOCTYPE html>\n" +
@@ -313,6 +359,22 @@ public class Converter {
         }
     }
 
+    static boolean isCaption(String t) {
+        if (t == null) return false;
+        String x = t.trim();
+        if (x.isEmpty() || x.length() > 400) return false;
+        return x.matches("^(图|表|Figure|Fig\\.?|Table)\\s*[S]?\\s*\\d.*");
+    }
+
+    static String colophonHtml() {
+        return "<h2>版权与制作信息</h2><div class=\"colophon\">"
+                + "<p><strong>制作</strong>　" + esc(MAKER) + "　&lt;" + MAKER_EMAIL + "&gt;</p>"
+                + "<p><strong>程序</strong>　网页成书 WebToBook v" + VERSION + "</p>"
+                + "<p><strong>主页</strong>　" + HOMEPAGE + "</p>"
+                + "<p><strong>声明</strong>　本文档由网页内容自动转换，仅供个人学习与资料归档，版权归原作者及原平台所有。</p>"
+                + "</div>";
+    }
+
     static String xhtml(String title, String body) {
         return "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!DOCTYPE html>\n" +
                 "<html xmlns=\"http://www.w3.org/1999/xhtml\" xmlns:epub=\"http://www.idpf.org/2007/ops\" " +
@@ -322,22 +384,20 @@ public class Converter {
     }
 
     static String renderBlock(Element el, Map<String, File> map) {
+        StringBuilder sb = new StringBuilder();
         Elements imgs = el.select("img");
-        if (imgs.size() > 0 && el.text().trim().isEmpty()) {
-            StringBuilder sb = new StringBuilder("<div>");
-            for (Element im : imgs) {
-                String u = im.hasAttr("data-src") ? im.attr("data-src") : im.attr("src");
-                if (u == null) continue;
-                u = u.trim();
-                if (u.startsWith("//")) u = "https:" + u;
-                File f = map.get(u);
-                if (f != null) sb.append("<img src=\"../images/").append(f.getName()).append("\" alt=\"\"/>");
-            }
-            return sb.append("</div>").toString();
+        StringBuilder ih = new StringBuilder();
+        for (Element im : imgs) {
+            String u = normalizeImageUrl(im.hasAttr("data-src") ? im.attr("data-src") : im.attr("src"));
+            File f = u == null ? null : map.get(u);
+            if (f != null) ih.append("<img src=\"../images/").append(f.getName()).append("\" alt=\"\"/>");
         }
+        if (ih.length() > 0) sb.append("<div class=\"img\">").append(ih).append("</div>");
         String t = el.text().trim();
-        if (t.isEmpty()) return "";
-        return "<p>" + esc(t) + "</p>";
+        if (!t.isEmpty()) {
+            sb.append(isCaption(t) ? "<p class=\"cap\">" : "<p>").append(esc(t)).append("</p>");
+        }
+        return sb.toString();
     }
 
     // ------------------------------------------------------------ pdf
@@ -359,6 +419,13 @@ public class Converter {
             page = doc.startPage(new PdfDocument.PageInfo.Builder(W, H, no).create());
             canvas = page.getCanvas();
             y = M;
+            Paint fp = new Paint(Paint.ANTI_ALIAS_FLAG);
+            fp.setTypeface(Typeface.create(Typeface.SERIF, Typeface.NORMAL));
+            fp.setColor(Color.rgb(150, 150, 150));
+            fp.setTextSize(8f);
+            canvas.drawText("网页成书 v" + VERSION + " · 制作：" + MAKER + "  " + MAKER_EMAIL, M, H - 14, fp);
+            fp.setTextAlign(Paint.Align.RIGHT);
+            canvas.drawText(String.valueOf(no), W - M, H - 14, fp);
         }
 
         void ensure(float h) { if (y + h > H - M) newPage(); }
@@ -430,9 +497,11 @@ public class Converter {
                 }
                 String text = el.text().trim();
                 if (text.isEmpty()) continue;
+                boolean cap = isCaption(text);
                 TextPaint tpx = new TextPaint(paint);
                 tpx.setTypeface(body);
-                tpx.setTextSize(11f);
+                tpx.setTextSize(cap ? 9f : 11f);
+                if (cap) tpx.setColor(Color.rgb(90, 90, 90));
                 StaticLayout sl = StaticLayout.Builder.obtain(text, 0, text.length(), tpx, w.W - 2 * w.M)
                         .setLineSpacing(4f, 1f)
                         .build();
@@ -443,6 +512,32 @@ public class Converter {
                 w.canvas.restore();
                 w.y += sl.getHeight() + 6;
             }
+        }
+        // 版权与制作信息
+        w.newPage();
+        TextPaint hp2 = new TextPaint(paint);
+        hp2.setTypeface(head);
+        hp2.setTextSize(16f);
+        w.canvas.drawText("版权与制作信息", w.M, w.y + 18, hp2);
+        w.y += 40;
+        String[] lines = new String[]{
+                "制作　" + MAKER + "　<" + MAKER_EMAIL + ">",
+                "程序　网页成书 WebToBook v" + VERSION,
+                "主页　" + HOMEPAGE,
+                "声明　本文档由网页内容自动转换，仅供个人学习与资料归档，版权归原作者及原平台所有。"};
+        for (String line : lines) {
+            TextPaint lp = new TextPaint(paint);
+            lp.setTypeface(body);
+            lp.setTextSize(10f);
+            lp.setColor(Color.rgb(80, 80, 80));
+            StaticLayout sl = StaticLayout.Builder.obtain(line, 0, line.length(), lp, w.W - 2 * w.M)
+                    .setLineSpacing(5f, 1f).build();
+            w.ensure(sl.getHeight() + 8);
+            w.canvas.save();
+            w.canvas.translate(w.M, w.y);
+            sl.draw(w.canvas);
+            w.canvas.restore();
+            w.y += sl.getHeight() + 8;
         }
         w.save(out);
     }
@@ -507,9 +602,23 @@ public class Converter {
                         continue;
                     }
                     String t = el.text().trim();
-                    if (!t.isEmpty()) body.append(paragraph(t, false, 22));
+                    if (!t.isEmpty()) {
+                        if (isCaption(t)) {
+                            body.append("<w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr><w:r><w:rPr>"
+                                    + "<w:color w:val=\"555555\"/><w:sz w:val=\"18\"/></w:rPr>"
+                                    + "<w:t xml:space=\"preserve\">" + esc(t) + "</w:t></w:r></w:p>");
+                        } else {
+                            body.append(paragraph(t, false, 22));
+                        }
+                    }
                 }
             }
+
+            body.append(paragraph("版权与制作信息", true, 30));
+            body.append(paragraph("制作：" + MAKER + "  <" + MAKER_EMAIL + ">", false, 20));
+            body.append(paragraph("程序：网页成书 WebToBook v" + VERSION, false, 20));
+            body.append(paragraph("主页：" + HOMEPAGE, false, 20));
+            body.append(paragraph("声明：本文档由网页内容自动转换，仅供个人学习与资料归档，版权归原作者及原平台所有。", false, 18));
 
             String doc = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
                     "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" " +
